@@ -38,13 +38,6 @@ module Jekyll
 
       if globally_enabled
         # puts "Cross-posting enabled"
-        user_id = ENV['MEDIUM_USER_ID'] or false
-        token = ENV['MEDIUM_INTEGRATION_TOKEN'] or false
-
-        if ! user_id or ! token
-          raise ArgumentError, "MediumCrossPostGenerator: Environment variables not found"
-          return
-        end
 
         if defined?(cache_dir)
           FileUtils.mkdir_p(cache_dir)
@@ -79,13 +72,24 @@ module Jekyll
               content = post.content
               url = "#{@site.config['url']}#{post.url}"
               title = post.data['title']
-              
+
               published_at = backdate ? post.date : DateTime.now
 
-              crosspost_payload(crossposted, post, content, title, url, published_at)
+
+              author = @site.data["authors"]["nicolas"]
+              if post["author"]
+                author = @site.data["authors"][post["author"]]
+              end
+
+              @medium_user_id =  author["medium_user_id"]
+              @medium_integration_token = author["medium_integration_token"]
+
+              if @medium_user_id && @medium_integration_token
+                crosspost_payload(crossposted, post, content, title, url, published_at)
+              end
             end
           else
-            
+
             # post Jekyll commit 0c0aea3
             # https://github.com/jekyll/jekyll/commit/0c0aea3ad7d2605325d420a23d21729c5cf7cf88
             if defined? site.find_converter_instance
@@ -113,11 +117,21 @@ module Jekyll
 
               url = "#{@site.config['url']}#{post.url}"
               title = post.title
-              
+
               published_at = backdate ? post.date : DateTime.now
 
-              crosspost_payload(crossposted, post, content, title, url, published_at)
-              
+              author = @site.data["authors"]["nicolas"]
+              if post["author"]
+                author = @site.data["authors"][post["author"]]
+              end
+
+              @medium_user_id =  author["medium_user_id"]
+              @medium_integration_token = author["medium_integration_token"]
+
+              if @medium_user_id && @medium_integration_token
+                crosspost_payload(crossposted, post, content, title, url, published_at)
+              end
+
             end
           end
         end
@@ -182,9 +196,7 @@ module Jekyll
 
 
     def crosspost_to_medium(payload)
-      user_id = ENV['MEDIUM_USER_ID'] or false
-      token = ENV['MEDIUM_INTEGRATION_TOKEN'] or false
-      medium_api = URI.parse("https://api.medium.com/v1/users/#{user_id}/posts")
+      medium_api = URI.parse("https://api.medium.com/v1/users/#{@medium_user_id}/posts")
 
       # Build the connection
       https = Net::HTTP.new(medium_api.host, medium_api.port)
@@ -192,7 +204,7 @@ module Jekyll
       request = Net::HTTP::Post.new(medium_api.path)
 
       # Set the headers
-      request['Authorization'] = "Bearer #{token}"
+      request['Authorization'] = "Bearer #{@medium_integration_token}"
       request['Content-Type'] = "application/json"
       request['Accept'] = "application/json"
       request['Accept-Charset'] = "utf-8"
